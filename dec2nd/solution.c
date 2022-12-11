@@ -2,15 +2,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#if defined(_MSC_VER)    || \
-	defined(_WIN32)      || \
-	defined(__MINGW32__) || \
-	defined(__CYGWIN32__)
-#	define LF_LEN 2
-#else
-#	define LF_LEN 1
-#endif
-
 typedef enum players_t {
 	ROCK     = 1,
 	PAPER    = 2,
@@ -22,8 +13,6 @@ typedef enum scores_t {
 	LOSS = 0,
 	TIE  = 3
 } scores_t;
-
-static int _c = 0;
 
 players_t from_char(char *c) {
 	switch (*c) {
@@ -39,6 +28,17 @@ players_t from_char(char *c) {
 	}
 
 	// printf("ERROR! unknown char: '%c' (ASCII = %d)\n", *c, (int) *c);
+}
+
+scores_t from_char_s(char *c) {
+	switch (*c) {
+		case 'X':
+			return LOSS;
+		case 'Y':
+			return TIE;
+		case 'Z':
+			return WIN;
+	}
 }
 
 void print_player(players_t player, char *end) {
@@ -66,6 +66,18 @@ players_t victor_from_player(players_t *p1) {
 			return ROCK;
 		case SCISSORS:
 			return PAPER;
+	}
+}
+
+// Returns the player that p1 looses to.
+players_t looser_from_player(players_t *p1) {
+	switch (*p1) {
+		case SCISSORS:
+			return ROCK;
+		case ROCK:
+			return PAPER;
+		case PAPER:
+			return SCISSORS;
 	}
 }
 
@@ -105,23 +117,45 @@ int send_players_to_fn(FILE *fp, void(*part)(char, char, void*), void *result) {
 	return 1;
 }
 
-uint32_t score_from_round(char *us, char *them) {
-	players_t us_unwrapped   = from_char(us);
-	players_t them_unwrapped = from_char(them);
-
-	if (us_unwrapped == them_unwrapped) return TIE + us_unwrapped;
+uint32_t score_from_round(players_t us, players_t them) {
+	if (us == them) return TIE + us;
 	
-	players_t victor = victor_from_player(&us_unwrapped);
+	players_t victor = victor_from_player(&us);
 
-	if (victor == them_unwrapped) return WIN + us_unwrapped;
+	if (victor == them) return WIN + us;
 	
-	return LOSS + us_unwrapped;
+	return LOSS + us;
 }
 
 void part_one(char c1, char c2, void *data) {
 	int *i_data = (int*) data;
-	int score = score_from_round(&c2, &c1); 
+	int score = score_from_round(from_char(&c2), from_char(&c1)); 
 	*i_data += score;
+}
+
+void part_two(char c1, char c2, void *data) {
+	int *data_p = (int*) data;
+
+	players_t us;
+	players_t them = from_char(&c1);
+
+	scores_t required_score = from_char_s(&c2);
+
+	switch (required_score) {
+		case TIE:
+			us = them;
+			break;
+		case WIN:
+			us = looser_from_player(&them);
+			break;
+		case LOSS:
+			us = victor_from_player(&them);
+			break;
+	}
+
+	uint32_t score = score_from_round(us, them);
+	
+	*data_p += score;
 }
 
 int main() {
@@ -131,8 +165,13 @@ int main() {
 	int result = 0;
 
 	send_players_to_fn(fp, &part_one, &result);
+	printf("PART ONE:\n\t%d", result);
 
-	printf("%d", result);
+	result = 0;
+	rewind(fp);
+
+	send_players_to_fn(fp, &part_two, &result);
+	printf("\nPART TWO:\n\t%d", result);
 
 	fclose(fp);
 }
