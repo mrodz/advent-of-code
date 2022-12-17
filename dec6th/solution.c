@@ -27,14 +27,14 @@ int all_uniq(char* array, size_t length) {
 	return should_not_change;
 }
 
-void part_one(char chars[4], void *data)
+void part_one(char chars[14], void *data)
 {
 	int *data_p = (int *)data;
 #ifdef DEBUG
 	printf("[%c, %c, %c, %c]\n", chars[0], chars[1], chars[2], chars[3]);
 #endif
 
-	if (all_uniq(chars, 4)) {
+	if (all_uniq(chars, 14)) {
 		*data_p = FOUND_UNIQUE;
 	}
 	
@@ -45,7 +45,7 @@ int send_ranges_from_file(FILE *fp, void (*part)(char three[3], void *), void *r
 	if (fp == NULL)
 		return 1;
 
-	char destination[5];
+	char destination[15];
 	int i = 0;
 	while (fgets(destination, sizeof destination, fp) != NULL)
 	{
@@ -58,11 +58,11 @@ int send_ranges_from_file(FILE *fp, void (*part)(char three[3], void *), void *r
 		if (*(int *)result == FOUND_UNIQUE)
 		{
 			// the +3 makes sure the number returned tells where the marker ENDS
-			*(int *)result = i + 3;
+			*(int *)result = i + 13;
 			return 0;
 		}
 
-		fseek(fp, -3, SEEK_CUR);
+		fseek(fp, -13, SEEK_CUR);
 	}
 
 	return 0;
