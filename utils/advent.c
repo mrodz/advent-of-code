@@ -65,6 +65,10 @@ int *get(hash_map_t *map, int key)
 	}
 }
 
+int qinsert(hash_map_t *map, int key, int value) {
+	insert(map, key, value, NULL);
+}
+
 int insert(hash_map_t *map, int key, int value, int *swap)
 {
 	size_t maybe_position = __hash(key) % map->capacity;

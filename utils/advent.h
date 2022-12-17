@@ -33,6 +33,8 @@ extern "C"
 
 	int *get(hash_map_t *map, int key);
 
+	int qinsert(hash_map_t *map, int key, int value);
+
 	int insert(hash_map_t *map, int key, int value, int *swap);
 
 	void print_hashmap(hash_map_t *map);
