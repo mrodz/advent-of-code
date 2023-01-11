@@ -1,4 +1,4 @@
-#include "advent.h"
+#include "hashmap.h"
 
 size_t __hash(unsigned int x)
 {
