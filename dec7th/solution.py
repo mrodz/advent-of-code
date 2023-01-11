@@ -2,7 +2,12 @@ with open('input.txt') as f:
     commands = f.readlines()
 
 
+# Constants
 MAX_SIZE = 100_000
+TOTAL_DISK_SPACE = 70_000_000
+SPACE_NEEDED = 30_000_000
+
+
 sizesmap = dict()
 cwd = []
 
@@ -33,6 +38,7 @@ for command in commands:
 
             sizesmap[directory] += int(parts[0])
 
+
 result = 0
 for key, value in sizesmap.items():
     if value <= MAX_SIZE:
@@ -40,3 +46,10 @@ for key, value in sizesmap.items():
         print(f'~{(key[1:])} ({value} bytes)')
 
 print("PART ONE:", result)
+
+size_of_root = sizesmap.get('/')
+size_of_unused = TOTAL_DISK_SPACE - size_of_root
+size_to_free = SPACE_NEEDED - size_of_unused
+
+result = sorted(size for size in sizesmap.values() if size > size_to_free)
+print("PART TWO:", result[0])
