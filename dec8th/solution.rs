@@ -1,8 +1,129 @@
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Lines};
 use std::path::Path;
+
+struct Forest {
+    pub line_len: usize,
+    pub matrix: Vec<Vec<u8>>,
+}
+
+impl Forest {
+    fn row(&self, y: usize) -> Vec<u8> {
+        self.matrix[y].clone()
+    }
+
+    fn column(&self, x: usize) -> Vec<u8> {
+        let mut vertical = Vec::with_capacity(self.line_len);
+
+        for i in 0..self.line_len {
+            vertical.push(self.matrix[i][x]);
+        }
+
+        vertical
+    }
+
+    fn new(matrix: Vec<Vec<u8>>) -> Self {
+        assert_eq!(matrix.len(), matrix[0].len());
+
+        Self {
+            line_len: matrix.len(),
+            matrix: matrix,
+        }
+    }
+
+    fn get_visible_trees<F>(
+        &self,
+        line: &[u8],
+        map: &mut HashMap<(usize, usize), i32>,
+        coord_gen: F,
+    ) where
+        F: Fn(usize) -> (usize, usize),
+    {
+        let len = line.len();
+        let (mut i, mut j) = (0, len - 1);
+
+        let (mut biggest_l, mut biggest_r) = (-1, -1);
+
+        loop {
+            let l: i32 = line[i] as i32 - 48;
+            let r: i32 = line[j] as i32 - 48;
+
+            if l > biggest_l {
+                biggest_l = l;
+
+                let coord = coord_gen(i);
+                map.insert(coord, map.get(&coord).unwrap_or(&0) + 1);
+            }
+
+            if r > biggest_r {
+                biggest_r = r;
+
+                let coord = coord_gen(j);
+                map.insert(coord, map.get(&coord).unwrap_or(&0) + 1);
+            }
+
+            if j == 0 {
+                break;
+            }
+
+            i += 1;
+            j -= 1;
+        }
+    }
+
+    fn scenic_score_for_plane(plane: Vec<u8>, idx: usize) -> i32 {
+        let left = plane[..idx].iter().rev();
+        let right = &plane[idx + 1..];
+
+        let value_ceil =
+            <u8 as Into<i32>>::into(*plane.get(idx).expect("no value at idx")) - 48;
+
+        let mut dist_l = 0;
+
+        for i in left {
+            let as_i32: i32 = (i - 48).into();
+            dist_l += 1;
+
+            if as_i32 >= value_ceil {
+                break;
+            }
+        }
+
+        if dist_l == 0 {
+            return 0; // because, if this is zero, the product will be zeroed out.
+        }
+
+        let mut dist_r = 0;
+        for i in right {
+            let as_i32: i32 = (i - 48).into();
+            dist_r += 1;
+
+            if as_i32 >= value_ceil {
+                break;
+            }
+        }
+
+        dist_l * dist_r
+    }
+
+    fn scenic_score_for_point(&self, point: (usize, usize)) -> i32 {
+        let (hidx, vidx) = point;
+        let mut result = 1;
+
+        let row = self.row(hidx);
+        result *= Self::scenic_score_for_plane(row, vidx);
+
+        if result == 0 {
+            return 0; // because, if this is zero, the product will be zeroed out.
+        }
+
+        let column = self.column(vidx);
+        result *= Self::scenic_score_for_plane(column, hidx);
+
+        result
+    }
+}
 
 pub fn main() {
     let lines: Vec<Vec<u8>> = read_lines("./input.txt")
@@ -10,94 +131,29 @@ pub fn main() {
         .map(|line| Vec::from(line.unwrap().as_bytes()))
         .collect();
 
-    let mut map: HashMap<(usize, usize), i32> = HashMap::with_capacity(99);
+    let forest = Forest::new(lines);
 
-    let len: usize = lines[0].len();
+    let mut map: HashMap<(usize, usize), i32> = HashMap::new();
+    let mut best_score: i32 = 0;
 
-    let mut bonus = 0;
+    for i in 0..forest.line_len {
+        let horizontal = forest.row(i);
+        let vertical = forest.column(i);
 
-    for i in 0..len {
-        let mut horizontal = Vec::with_capacity(99);
-        let mut vertical = Vec::with_capacity(99);
+        for j in 0..forest.line_len {
+            let score = forest.scenic_score_for_point((i, j));
 
-        for j in 0..len {
-            horizontal.push(lines[i][j]);
-            vertical.push(lines[j][i]);
+            if score > best_score {
+                best_score = score;
+            }
         }
 
-        tree_line(&horizontal, &mut map, |x: usize| (i, x));
-        tree_line(&vertical, &mut map, |x: usize| (x, i));
+        forest.get_visible_trees(&horizontal, &mut map, |x: usize| (i, x));
+        forest.get_visible_trees(&vertical, &mut map, |x: usize| (x, i));
     }
 
-    let mut plotted = vec![vec![-0xff; len]; len];
-
-    for (key, value) in &map {
-        plotted[key.0][key.1] = *value;
-    }
-
-    for row in plotted {
-        for c in row {
-            print!(
-                "{}",
-                if c == -0xff {
-                    '_'
-                } else {
-                    char::from_u32((c + 48).try_into().unwrap()).unwrap()
-                }
-            );
-        }
-        println!();
-    }
-
-    println!("\n$ {}", map.len())
-}
-
-fn tree_line<F>(line: &[u8], map: &mut HashMap<(usize, usize), i32>, coord_gen: F) -> ()
-where
-    F: Fn(usize) -> (usize, usize),
-{
-    let len = line.len();
-    let (mut i, mut j) = (0, len - 1);
-
-    let (mut biggest_l, mut biggest_r) = (-1, -1);
-
-    let mut result = 0;
-
-    // let zed: usize = row;
-
-    loop {
-        let l: i32 = line[i] as i32 - 48;
-        let r: i32 = line[j] as i32 - 48;
-
-        // println!("({l}, {r})");
-
-        if l > biggest_l {
-            result += 1;
-            biggest_l = l;
-
-            let coord = coord_gen(i);
-            map.insert(coord, map.get(&coord).unwrap_or(&0) + 1);
-
-            println!("## line[{i}] (aka. {l}) adds +1.\n## DEBUG:\n##\t- biggest_l = {biggest_l},\n##\t- coord = {:?},\n##\t- result = {result}\n", coord);
-        }
-
-        if r > biggest_r {
-            result += 1;
-            biggest_r = r;
-
-            let coord = coord_gen(j);
-            map.insert(coord, map.get(&coord).unwrap_or(&0) + 1);
-
-            println!("## line[{j}] (aka. {r}) adds +1.\n## DEBUG:\n##\t- biggest_r = {biggest_r},\n##\t- coord = {:?},\n##\t- result = {result}\n", coord);
-        }
-
-        if j == 0 {
-            break;
-        }
-		
-        i += 1;
-        j -= 1;
-    }
+    println!("PART ONE: {}", map.len());
+    println!("PART TWO: {best_score}");
 }
 
 fn read_lines<T: AsRef<Path>>(filename: T) -> io::Result<Lines<BufReader<File>>> {
